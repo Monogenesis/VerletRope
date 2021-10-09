@@ -1,65 +1,127 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class RopeController : MonoBehaviour
+[System.Serializable]
+public class Rope
 {
-    public static List<Point> points = new List<Point>();
-    public static List<Stick> sticks = new List<Stick>();
     [SerializeField] private float gravity = 30.0f;
-    [SerializeField] private int segments = 30;
-    [SerializeField] private float segmentLength = 0.1f;
-    [SerializeField] private float maxVelocity = 1.0f;
+    [SerializeField] private float maxVelocity = 10.0f;
     [SerializeField, Range(0.0f, 5.0f)] private float drag = 0.1f;
-    [SerializeField, Range(0.0f, 180.0f)] private float stiffness = 60.0f;
-    [SerializeField, Range(1, 100)] private int elasticity = 20;
+    [SerializeField, Range(0.0f, 180.0f)] private float stiffness = 60.0f; // TODO make the constraint more soft with lerp
+    [SerializeField, Range(1, 100)] private int elasticity = 40;
 
-    private void Start()
+    private Vector3 position;
+    private Point firstPoint;
+    private Point lastPoint;
+    private List<Point> points = new List<Point>();
+    private List<Stick> sticks = new List<Stick>();
+
+    private bool ropeCreated;
+
+    public Vector3 Position
     {
-        CreateRope();
+        get => position;
+        set => position = value;
+    }
+
+    public class Stick
+    {
+        public Point pointA;
+        public Point pointB;
+        public float length;
     }
 
 
-    private void FixedUpdate()
+    public class Point
     {
-        Simulate();
+        public Vector3 position, prevPosition;
+        public bool locked;
+        public bool ankerPoint;
     }
 
-    void CreateRope()
-    {
+    public Point FirstPoint
+    { get => firstPoint; set => firstPoint = value; }
 
-        Point anker = new GameObject().AddComponent<Point>();
+    public Point LastPoint
+    { get => lastPoint; set => lastPoint = value; }
+
+
+    public Rope(float gravity = 30.0f, float maxVelocity = 10.0f, float drag = 0.1f, float stiffness = 60.0f, int elasticity = 40)
+    {
+        this.gravity = gravity;
+        this.maxVelocity = maxVelocity;
+        this.drag = drag;
+        this.stiffness = stiffness;
+        this.elasticity = elasticity;
+    }
+
+
+    public void CreateRope(Vector3 position, int numberOfSegments, float totalLength)
+    {
+        float distancePerSegment = (float)(totalLength / numberOfSegments);
+        RemoveRope();
+        ropeCreated = true;
+        Point anker = new Point();
+        anker.ankerPoint = true;
         anker.locked = true;
+        firstPoint = anker;
         Point prevPoint = anker;
-        for (int i = 1; i <= segments; i++)
+        points.Add(anker);
+        for (int i = 1; i <= numberOfSegments; i++)
         {
-            Stick stick = new GameObject().AddComponent<Stick>();
-            prevPoint.stick = stick;
-            stick.length = segmentLength;
+            Stick stick = new Stick();
+            sticks.Add(stick);
+            stick.length = distancePerSegment;
             stick.pointA = prevPoint;
-            stick.pointA.position = new Vector3(transform.position.x, transform.position.y, transform.position.z) + new Vector3(0.0f, i * segmentLength, 0.0f);
-            stick.pointA.transform.position = stick.pointA.position;
-            Point nextP = new GameObject().AddComponent<Point>();
-            nextP.stick = stick;
+            stick.pointA.position = new Vector3(position.x, position.y, position.z) + new Vector3(0.0f, -i * distancePerSegment, 0.0f);
+            Point nextP = new Point();
+            nextP.locked = false;
             stick.pointB = nextP;
-            stick.pointB.position = new Vector3(transform.position.x, transform.position.y, transform.position.z) + new Vector3(0.0f, i * segmentLength * 2, 0.0f);
-            stick.pointB.transform.position = stick.pointB.position;
+            stick.pointB.position = new Vector3(position.x, position.y, position.z) + new Vector3(0.0f, -i * distancePerSegment * 2, 0.0f);
             prevPoint = nextP;
+            lastPoint = nextP;
+            points.Add(nextP);
         }
 
     }
 
-    void Simulate()
+
+    public void RemoveRope()
     {
-        MoveRopeSegments();
+        ropeCreated = false;
+        points.Clear();
+        sticks.Clear();
+    }
 
 
-        for (int i = 0; i < elasticity; i++)
+    public void DrawRope()
+    {
+        if (ropeCreated)
+            foreach (Stick stick in sticks)
+            {
+                Debug.DrawLine(stick.pointA.position, stick.pointB.position, Color.blue);
+            }
+    }
+
+
+    public void Simulate()
+    {
+        if (ropeCreated)
         {
-            DistanceConstraint();
+            MoveRopeSegments();
+
+
+            for (int i = 0; i < elasticity; i++)
+            {
+                DistanceConstraint();
+            }
+
             // StiffnessConstraint();
         }
+
     }
+
+
     private void MoveRopeSegments()
     {
         foreach (Point p in points)
@@ -76,6 +138,7 @@ public class RopeController : MonoBehaviour
             }
         }
     }
+
 
     private void StiffnessConstraint()
     {
@@ -101,7 +164,7 @@ public class RopeController : MonoBehaviour
                         float y = Mathf.Sin(desiredAngle * Mathf.Deg2Rad);
                         float z = Mathf.Tan(desiredAngle * Mathf.Deg2Rad);
                         Vector3 newDir = new Vector3(x, -y, z);
-                        nextStick.pointB.position = stick.pointB.position + newDir * segmentLength;
+                        nextStick.pointB.position = stick.pointB.position + newDir * stick.length;
                         // nextStick.pointB.prevPosition = Vector2.Lerp(nextStick.pointB.prevPosition, nextStick.pointB.position, Time.deltaTime * 10);
                         nextStick.pointB.prevPosition = nextStick.pointB.position;
 
@@ -113,6 +176,8 @@ public class RopeController : MonoBehaviour
         }
 
     }
+
+
     private void DistanceConstraint()
     {
         foreach (Stick stick in sticks)

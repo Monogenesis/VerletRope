@@ -5,7 +5,7 @@ using UnityEngine;
 [RequireComponent(typeof(MeshFilter), typeof(MeshRenderer))]
 public class Point : MonoBehaviour
 {
-    public Vector2 position, prevPosition;
+    public Vector3 position, prevPosition;
     public Stick stick;
     public bool locked;
 
@@ -18,7 +18,7 @@ public class Point : MonoBehaviour
         position = transform.position;
         // meshFilter = GetComponent<MeshFilter>();
         // meshFilter.mesh = new List<Mesh>(Resources.FindObjectsOfTypeAll<Mesh>()).Find((mesh) => mesh.name == "Sphere");
-        this.name = "Bead";
+        this.name = "Point";
 
     }
     private void FixedUpdate()
